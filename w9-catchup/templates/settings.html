@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Settings · W-9 Catch-Up</title>
+<style>
+  :root {
+    --bg: #f7f5f1; --ink: #0a0a0a; --muted: #5f6b7a;
+    --navy: #1f3b66; --amber: #d08a2c; --border: #d4d4d4; --bg-soft: #f3f4f6;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font-family: -apple-system, "Segoe UI", system-ui, sans-serif; font-size: 14px; }
+  header { background: var(--navy); color: #fff; padding: 10px 18px;
+           display: flex; align-items: center; gap: 18px; }
+  header h1 { margin: 0; font-size: 1rem; font-weight: 700; }
+  header a { color: #fff; text-decoration: none; }
+  header a:hover { text-decoration: underline; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 22px 18px; }
+  h2 { font-size: 0.92rem; color: var(--navy); margin: 22px 0 6px; }
+  .hint { font-size: 0.78rem; color: var(--muted); margin: 0 0 10px; }
+  .root-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .root-row input { flex: 1; padding: 7px 10px; border: 1px solid var(--border);
+                    border-radius: 5px; font-size: 0.85rem;
+                    font-family: 'JetBrains Mono', monospace; }
+  .chip { font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+  .chip.ok { background: #dcfce7; color: #166534; }
+  .chip.bad { background: #fee2e2; color: #991b1b; }
+  .chip.unk { background: #e5e7eb; color: #475569; }
+  button { font-size: 0.82rem; cursor: pointer; border-radius: 5px; }
+  .btn-rm { padding: 6px 10px; background: #fff; color: #991b1b; border: 1px solid #fca5a5; }
+  .btn-add { padding: 6px 12px; background: #fff; color: var(--navy); border: 1px solid var(--navy); }
+  .btn-save { padding: 9px 22px; background: var(--navy); color: #fff; border: 0; font-weight: 700; }
+  .cfg input { width: 100%; padding: 7px 10px; border: 1px solid var(--border);
+               border-radius: 5px; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; }
+  .save-bar { margin-top: 22px; display: flex; align-items: center; gap: 14px; }
+  #save-status { font-size: 0.82rem; font-weight: 600; }
+  #save-status.ok { color: #15803d; } #save-status.err { color: #b91c1c; }
+  .card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/">&larr; All W-9s</a>
+  <h1>Settings</h1>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <h2 style="margin-top:0;">W-9 scan folders</h2>
+    <p class="hint">Each folder is searched recursively for PDFs. Add as many
+      as you need (for example <code>K:\W-9s</code> plus any folders on
+      <code>P:\</code> that hold W-9s). A green check means the folder is
+      reachable right now.</p>
+    <div id="roots"></div>
+    <button type="button" class="btn-add" onclick="addRow('')">+ Add folder</button>
+
+    <h2>Filename filter (optional)</h2>
+    <p class="hint">Only scan PDFs whose filename contains one of these
+      comma-separated words (case-insensitive). Leave blank to scan every PDF.
+      Use this when a scan folder (like <code>P:</code>) holds non-W-9 PDFs you
+      don't want OCR'd — for example <code>w9, w-9, w 9</code>.</p>
+    <div class="cfg">
+      <input type="text" id="name-filter" value="{{ scan_name_filter }}"
+             placeholder="blank = all PDFs; or e.g.  w9, w-9, w 9">
+    </div>
+
+    <h2>Spectrum config file</h2>
+    <p class="hint">Path to the CM Accounting Utility <code>config.json</code>
+      (ODBC credentials + operator). Used for vendor matching and the
+      Spectrum writebacks. Leave as-is unless the share moves.</p>
+    <div class="cfg">
+      <input type="text" id="spectrum-config" value="{{ spectrum_config_path }}">
+      <div style="margin-top:5px;">
+        <span class="chip {{ 'ok' if spectrum_config_exists else 'bad' }}" id="cfg-chip">
+          {{ 'reachable' if spectrum_config_exists else 'NOT found' }}
+        </span>
+      </div>
+    </div>
+
+    <h2>Tesseract OCR (optional)</h2>
+    <p class="hint">Path to <code>tesseract.exe</code>, used only when scanning
+      image-only W-9 PDFs (digital PDFs read without it). Defaults to the copy
+      Tallera ships on F:. If missing, scanning falls back to PDF text only.</p>
+    <div class="cfg">
+      <input type="text" id="tesseract-path" value="{{ tesseract_path }}">
+      <div style="margin-top:5px;">
+        <span class="chip {{ 'ok' if tesseract_exists else 'bad' }}" id="tess-chip">
+          {{ 'reachable' if tesseract_exists else 'NOT found' }}
+        </span>
+      </div>
+    </div>
+
+    <div class="save-bar">
+      <button type="button" class="btn-save" onclick="saveSettings()">Save settings</button>
+      <span id="save-status"></span>
+    </div>
+    <p class="hint" style="margin-top:14px;">
+      After changing folders, run an <strong>Incremental Scan</strong> from the
+      main page to pick up PDFs in the new locations. Removing a folder does not
+      delete already-scanned entries from the cache.</p>
+  </div>
+</div>
+
+<script>
+var INITIAL = {{ scan_roots | tojson }};
+var CHECKS = {{ checks | tojson }};
+
+function chip(exists) {
+  if (exists === true)  return '<span class="chip ok">reachable</span>';
+  if (exists === false) return '<span class="chip bad">NOT found</span>';
+  return '<span class="chip unk">unchecked</span>';
+}
+
+function addRow(value, exists) {
+  var wrap = document.getElementById('roots');
+  var row = document.createElement('div');
+  row.className = 'root-row';
+  row.innerHTML =
+    '<input type="text" class="root-input" placeholder="e.g. P:\\\\Some\\\\Folder\\\\With\\\\W9s" />' +
+    '<span class="root-chip">' + chip(exists) + '</span>' +
+    '<button type="button" class="btn-rm">Remove</button>';
+  row.querySelector('.root-input').value = value || '';
+  row.querySelector('.btn-rm').addEventListener('click', function(){ row.remove(); });
+  // re-check chip becomes "unchecked" once edited (only the server truly knows)
+  row.querySelector('.root-input').addEventListener('input', function(){
+    row.querySelector('.root-chip').innerHTML = chip(null);
+  });
+  wrap.appendChild(row);
+}
+
+(function init(){
+  if (!INITIAL.length) { addRow('', null); return; }
+  INITIAL.forEach(function(r, i){
+    var ex = (CHECKS[i] && CHECKS[i].path === r) ? CHECKS[i].exists : null;
+    addRow(r, ex);
+  });
+})();
+
+function collectRoots() {
+  return Array.prototype.map.call(
+    document.querySelectorAll('.root-input'),
+    function(el){ return el.value.trim(); }
+  ).filter(function(v){ return v.length; });
+}
+
+function saveSettings() {
+  var status = document.getElementById('save-status');
+  status.textContent = 'Saving...'; status.className = '';
+  fetch('/settings', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      scan_roots: collectRoots(),
+      spectrum_config_path: document.getElementById('spectrum-config').value.trim(),
+      tesseract_path: document.getElementById('tesseract-path').value.trim(),
+      scan_name_filter: document.getElementById('name-filter').value.trim(),
+    })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if (!d.ok) { status.textContent = 'Failed: ' + (d.error||'unknown'); status.className='err'; return; }
+    status.textContent = 'Saved ✓'; status.className = 'ok';
+    // re-render rows with fresh existence checks
+    document.getElementById('roots').innerHTML = '';
+    INITIAL = d.scan_roots; CHECKS = d.checks;
+    init2();
+    var c = document.getElementById('cfg-chip');
+    c.className = 'chip ' + (d.spectrum_config_exists ? 'ok' : 'bad');
+    c.textContent = d.spectrum_config_exists ? 'reachable' : 'NOT found';
+    var tc = document.getElementById('tess-chip');
+    tc.className = 'chip ' + (d.tesseract_exists ? 'ok' : 'bad');
+    tc.textContent = d.tesseract_exists ? 'reachable' : 'NOT found';
+  })
+  .catch(function(e){ status.textContent = 'Network error: ' + e; status.className='err'; });
+}
+function init2(){
+  if (!INITIAL.length) { addRow('', null); return; }
+  INITIAL.forEach(function(r, i){
+    var ex = (CHECKS[i] && CHECKS[i].path === r) ? CHECKS[i].exists : null;
+    addRow(r, ex);
+  });
+}
+</script>
+</body>
+</html>

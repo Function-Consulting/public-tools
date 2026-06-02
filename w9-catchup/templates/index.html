@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>W-9 Catch-Up</title>
+<style>
+  :root {
+    --bg: #f7f5f1; --ink: #0a0a0a; --muted: #5f6b7a;
+    --navy: #1f3b66; --amber: #d08a2c; --border: #d4d4d4;
+    --bg-soft: #f3f4f6;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+         font-size: 14px; }
+  header { background: var(--navy); color: #fff; padding: 10px 18px;
+           display: flex; align-items: center; gap: 18px; }
+  header h1 { margin: 0; font-size: 1rem; font-weight: 700; }
+  header .meta { font-size: 0.78rem; color: #b8d4ff; }
+  .toolbar {
+    background: #fff; border-bottom: 1px solid var(--border);
+    padding: 8px 18px; display: flex; gap: 12px; flex-wrap: wrap;
+    align-items: center; font-size: 0.82rem;
+  }
+  .toolbar label { display: flex; gap: 6px; align-items: center; }
+  .toolbar select, .toolbar input {
+    padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px;
+    font-size: 0.82rem;
+  }
+  .toolbar .btn {
+    padding: 4px 12px; border: 0; border-radius: 4px;
+    font-size: 0.82rem; cursor: pointer; color: #fff;
+    background: var(--navy);
+  }
+  .toolbar .btn.amber { background: var(--amber); }
+  .toolbar .btn.ghost { background: transparent; color: var(--navy);
+                        border: 1px solid var(--navy); }
+  .stats {
+    display: flex; gap: 18px; padding: 6px 18px;
+    font-size: 0.78rem; color: var(--muted); background: #fafaf8;
+    border-bottom: 1px solid var(--border);
+  }
+  .stats strong { color: var(--ink); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  thead th {
+    background: #d9e1f2; padding: 6px 8px; text-align: left;
+    border-bottom: 1px solid var(--border); font-weight: 700;
+    position: sticky; top: 0; z-index: 5;
+  }
+  tbody td {
+    padding: 6px 8px; border-bottom: 1px solid #eee;
+    vertical-align: top;
+  }
+  tbody tr:hover { background: #f8fafc; }
+  tbody tr.reviewed { background: #f0fdf4; }
+  tbody tr.reviewed:hover { background: #dcfce7; }
+  td.filename { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+  .match-chip {
+    display: inline-block; padding: 1px 8px; border-radius: 10px;
+    font-size: 0.7rem; font-weight: 600;
+  }
+  .match-chip.good { background: #dcfce7; color: #166534; }
+  .match-chip.weak { background: #fef3c7; color: #92400e; }
+  .match-chip.none { background: #fee2e2; color: #991b1b; }
+  .review-chip {
+    display: inline-block; padding: 1px 8px; border-radius: 10px;
+    font-size: 0.65rem; font-weight: 700;
+  }
+  .review-chip.yes { background: #15803d; color: #fff; }
+  .review-chip.no  { background: #cbd5e1; color: #475569; }
+  .warn { color: #92400e; font-size: 0.7rem; }
+  .empty {
+    text-align: center; padding: 60px 20px; color: var(--muted);
+  }
+  .empty .big-btn {
+    padding: 10px 22px; background: var(--navy); color: #fff;
+    border: 0; border-radius: 6px; font-size: 1rem; cursor: pointer;
+    margin-top: 12px;
+  }
+  a { color: var(--navy); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<header>
+  <h1>W-9 Catch-Up</h1>
+  <span class="meta">K:\W-9s historical OCR + review</span>
+  {% if scanned_at %}
+    <span class="meta" style="margin-left:auto;">Last scan: {{ scanned_at }}</span>
+  {% endif %}
+</header>
+
+<div class="stats">
+  <span><strong>{{ total }}</strong> PDFs cached</span>
+  <span><strong>{{ reviewed }}</strong> reviewed</span>
+  <span><strong>{{ matched }}</strong> matched to Spectrum vendor</span>
+  <span><strong>{{ posted }}</strong> posted to Spectrum</span>
+</div>
+
+<div class="toolbar">
+  <form method="GET" style="display:flex;gap:10px;align-items:center;">
+    <label>
+      Year
+      <select name="year">
+        <option value="">All</option>
+        {% for y in years %}
+          <option value="{{ y }}" {% if y == year_filter %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Reviewed
+      <select name="rev">
+        <option value="" {% if not rev_filter %}selected{% endif %}>Any</option>
+        <option value="yes" {% if rev_filter == 'yes' %}selected{% endif %}>Yes</option>
+        <option value="no" {% if rev_filter == 'no' %}selected{% endif %}>No</option>
+      </select>
+    </label>
+    <label>
+      Matched
+      <select name="match">
+        <option value="" {% if not match_filter %}selected{% endif %}>Any</option>
+        <option value="yes" {% if match_filter == 'yes' %}selected{% endif %}>Yes</option>
+        <option value="no" {% if match_filter == 'no' %}selected{% endif %}>No</option>
+      </select>
+    </label>
+    <label>
+      Posted
+      <select name="posted" onchange="this.form.submit()">
+        <option value="unposted" {% if posted_filter == 'unposted' %}selected{% endif %}>Unposted only</option>
+        <option value="all" {% if posted_filter == 'all' %}selected{% endif %}>All</option>
+        <option value="posted" {% if posted_filter == 'posted' %}selected{% endif %}>Posted only</option>
+      </select>
+    </label>
+    <button type="submit" class="btn ghost">Filter</button>
+    <a href="/" class="btn ghost" style="text-decoration:none;">Reset</a>
+  </form>
+  <span style="margin-left:auto;display:flex;gap:8px;">
+    <button type="button" class="btn" onclick="runScan(false)" title="OCR any new or modified PDFs in K:\W-9s (skips already-cached)">Incremental Scan</button>
+    <button type="button" class="btn" onclick="runRematch()" title="Re-run vendor matching against cached OCR text — fast (no OCR), refreshes top-5 candidates" style="background:#0e7490;">Rematch Vendors</button>
+    <button type="button" class="btn amber" onclick="runScan(true)" title="Re-OCR every PDF (slow)" >Full Re-Scan</button>
+    <a class="btn ghost" href="/export.csv" style="text-decoration:none;" title="Export reviewed entries as CSV for downstream Spectrum import">Export CSV</a>
+    <a class="btn ghost" href="/settings" style="text-decoration:none;" title="Configure scan folders and the Spectrum config path">&#9881; Settings</a>
+  </span>
+</div>
+
+{% if not entries %}
+<div class="empty">
+  <div>No W-9 PDFs in cache yet.</div>
+  <button class="big-btn" onclick="runScan(false)">Run Initial Scan</button>
+  <div style="font-size:0.78rem;margin-top:10px;color:var(--muted);">
+    This OCRs every PDF in K:\W-9s\&lt;year&gt;\.  First run may take a while
+    (text-layer extraction is fast; fully-scanned PDFs fall back to
+    Tesseract OCR which is slower).
+  </div>
+</div>
+{% else %}
+<table>
+  <thead>
+    <tr>
+      <th style="width:32px;"></th>
+      <th>Year</th>
+      <th>Filename</th>
+      <th>OCR Name</th>
+      <th>Business</th>
+      <th>TIN</th>
+      <th>Sig Date</th>
+      <th>Spectrum Match</th>
+      <th>Notes</th>
+      <th style="width:28px;"></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for e in entries %}
+    {% set p = e.primary or {} %}
+    {% set ex = p.extracted or {} %}
+    {% set m = p.match or {} %}
+    {% set ed = e.user_edits or {} %}
+    <tr id="row-{{ e.id }}" class="{% if e.reviewed %}reviewed{% endif %}">
+      <td>
+        {% if e.reviewed %}
+          <span class="review-chip yes">&#10003;</span>
+        {% else %}
+          <span class="review-chip no">·</span>
+        {% endif %}
+        {% if e.posted %}
+          <span class="review-chip yes" title="Posted to Spectrum {{ e.posted.posted_at }} (log #{{ e.posted.log_id or '—' }})" style="background:#0e7490;">S</span>
+        {% endif %}
+      </td>
+      <td>{{ e.year_folder }}</td>
+      <td class="filename"><a href="{{ url_for('review', pid=e.id) }}">{{ e.filename }}</a></td>
+      <td>{{ ed.vendor_name or ex.line1_name or '' }}</td>
+      <td>{{ ex.line2_business or '' }}</td>
+      <td>
+        {% set tin = ed.tin or ex.tin_formatted %}
+        {% if tin %}<code>{{ tin }}</code>{% endif %}
+        {% if ed.tin_kind or ex.tin_kind %}
+          <span class="warn" style="margin-left:4px;">({{ ed.tin_kind or ex.tin_kind }})</span>
+        {% endif %}
+      </td>
+      <td>{{ ed.signature_date or ex.signature_date or '' }}</td>
+      <td>
+        {% set vcode = ed.vendor_code or m.vendor_code %}
+        {% if vcode %}
+          <strong>{{ vcode }}</strong>
+          {% if m.ratio %}
+            <span class="match-chip {% if m.ratio >= 0.95 %}good{% else %}weak{% endif %}">{{ '%.0f'|format(m.ratio * 100) }}%</span>
+          {% endif %}
+          <div style="font-size:0.7rem;color:var(--muted);">{{ ed.vendor_name or m.vendor_name }}</div>
+        {% else %}
+          <span class="match-chip none">none{% if m.ratio %} ({{ '%.0f'|format(m.ratio * 100) }}% best){% endif %}</span>
+          {% if m.vendor_name %}<div style="font-size:0.7rem;color:var(--muted);">closest: {{ m.vendor_name }}</div>{% endif %}
+        {% endif %}
+      </td>
+      <td style="max-width:200px;">{{ ed.notes or '' }}</td>
+      <td>
+        <button type="button" title="Delete this entry (duplicate). Does not delete the PDF or touch Spectrum."
+                data-pid="{{ e.id }}" data-fn="{{ e.filename }}"
+                onclick="delEntry(this)"
+                style="border:1px solid #fca5a5; background:#fff; color:#991b1b; border-radius:4px; cursor:pointer; font-size:0.72rem; padding:2px 7px;">&times;</button>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<script>
+function delEntry(btn) {
+  var pid = btn.getAttribute('data-pid');
+  var filename = btn.getAttribute('data-fn') || 'this entry';
+  if (!confirm('Remove "' + filename + '" from the list?\n\nThis is for duplicates. It does NOT delete the PDF or change Spectrum, and the file will be skipped on future scans.')) return;
+  fetch('/delete/' + pid, {method: 'POST'})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) {
+        var row = document.getElementById('row-' + pid);
+        if (row) row.remove(); else window.location.reload();
+      } else {
+        alert('Delete failed: ' + (d.error || 'unknown'));
+      }
+    })
+    .catch(function(e) { alert('Delete failed: ' + e); });
+}
+
+function runRematch() {
+  var btn = event.target;
+  var orig = btn.textContent;
+  btn.textContent = 'Rematching...';
+  btn.disabled = true;
+  fetch('/rematch', {method: 'POST'})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      alert('Rematch complete\n\n' +
+            '  Updated:        ' + d.updated + '\n' +
+            '  Skipped (no name): ' + d.skipped + '\n' +
+            '  Total:          ' + d.total + '\n' +
+            '  Vendors loaded: ' + d.vendors_loaded);
+      window.location.reload();
+    })
+    .catch(function(e) {
+      alert('Rematch failed: ' + e);
+      btn.textContent = orig;
+      btn.disabled = false;
+    });
+}
+
+function runScan(full) {
+  if (full && !confirm('Force re-OCR EVERY PDF (slow — could take 10+ minutes on hundreds of forms)?')) return;
+  var url = full ? '/scan/full' : '/scan';
+  var btn = event.target;
+  var orig = btn.textContent;
+  btn.textContent = 'Scanning...';
+  btn.disabled = true;
+  fetch(url, {method: 'POST'})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      alert('Scan complete\n\n' +
+            '  New:        ' + d.new + '\n' +
+            '  Rescanned:  ' + d.rescanned + '\n' +
+            '  Skipped:    ' + d.skipped + '\n' +
+            '  Total PDFs: ' + d.total_pdfs + '\n' +
+            '  Vendors loaded: ' + d.vendors_loaded);
+      window.location.reload();
+    })
+    .catch(function(e) {
+      alert('Scan failed: ' + e);
+      btn.textContent = orig;
+      btn.disabled = false;
+    });
+}
+</script>
+
+</body>
+</html>

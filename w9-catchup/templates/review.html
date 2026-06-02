@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Review · {{ entry.filename }}</title>
+<style>
+  :root {
+    --bg: #f7f5f1; --ink: #0a0a0a; --muted: #5f6b7a;
+    --navy: #1f3b66; --amber: #d08a2c; --border: #d4d4d4;
+    --bg-soft: #f3f4f6;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+         font-size: 14px; }
+  header { background: var(--navy); color: #fff;
+           padding: 8px 16px; display: flex; gap: 18px; align-items: center; }
+  header h1 { margin: 0; font-size: 0.92rem; font-weight: 700; }
+  header .meta { font-size: 0.75rem; color: #b8d4ff; }
+  header a { color: #fff; text-decoration: none; }
+  header a:hover { text-decoration: underline; }
+  .nav-spacer { flex: 1; }
+  .nav-btn {
+    padding: 4px 12px; background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.3); border-radius: 4px;
+    color: #fff; font-size: 0.78rem; text-decoration: none;
+  }
+  .nav-btn.disabled { opacity: 0.4; pointer-events: none; }
+
+  main {
+    display: grid; grid-template-columns: 1fr 480px;
+    height: calc(100vh - 50px); gap: 0;
+  }
+  .pdf-pane {
+    background: #2c2c2c;
+    overflow: hidden;
+  }
+  .pdf-pane iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+  .form-pane {
+    background: #fff; border-left: 2px solid var(--border);
+    overflow-y: auto;
+    padding: 12px 16px;
+  }
+  .form-pane h2 {
+    margin: 0 0 8px; font-size: 0.86rem;
+    color: var(--navy); font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .ocr-block {
+    background: var(--bg-soft); border: 1px solid var(--border);
+    border-radius: 4px; padding: 10px 12px; margin-bottom: 12px;
+    font-size: 0.78rem;
+  }
+  .ocr-block dt {
+    font-size: 0.66rem; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--muted);
+    margin-top: 6px;
+  }
+  .ocr-block dt:first-child { margin-top: 0; }
+  .ocr-block dd { margin: 1px 0 0 0; font-weight: 500; }
+  .ocr-block dd.empty { font-style: italic; color: #94a3b8; }
+  .ocr-block dd code { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+  .warn-chip {
+    display: inline-block; padding: 1px 6px; border-radius: 8px;
+    font-size: 0.62rem; font-weight: 600; margin-right: 4px;
+    background: #fef3c7; color: #92400e;
+  }
+  form.edit { display: flex; flex-direction: column; gap: 8px; }
+  form.edit label {
+    display: flex; flex-direction: column; gap: 2px;
+    font-size: 0.7rem; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  form.edit input, form.edit textarea, form.edit select {
+    padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px;
+    font-size: 0.84rem; font-weight: 400; color: var(--ink);
+    text-transform: none; letter-spacing: 0;
+  }
+  form.edit textarea { resize: vertical; min-height: 50px; font-family: inherit; }
+  form.edit .row { display: grid; grid-template-columns: 1fr 110px; gap: 8px; }
+  .file-meta {
+    font-size: 0.7rem; color: var(--muted); margin-bottom: 10px;
+    word-break: break-all;
+  }
+  .actions {
+    margin-top: 10px; display: flex; gap: 8px; align-items: center;
+  }
+  .btn-primary {
+    padding: 6px 16px; background: var(--navy); color: #fff;
+    border: 0; border-radius: 4px; font-size: 0.85rem; cursor: pointer;
+    font-weight: 600;
+  }
+  .btn-secondary {
+    padding: 6px 14px; background: #fff; color: var(--navy);
+    border: 1px solid var(--navy); border-radius: 4px;
+    font-size: 0.85rem; cursor: pointer;
+  }
+  .save-status { font-size: 0.75rem; font-weight: 600; }
+  .save-status.ok { color: #15803d; }
+  .save-status.err { color: #b91c1c; }
+  .match-chip {
+    display: inline-block; padding: 1px 8px; border-radius: 10px;
+    font-size: 0.7rem; font-weight: 600;
+  }
+  .match-chip.good { background: #dcfce7; color: #166534; }
+  .match-chip.weak { background: #fef3c7; color: #92400e; }
+  .match-chip.none { background: #fee2e2; color: #991b1b; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/">&larr; All W-9s</a>
+  <h1>{{ entry.filename }}</h1>
+  <span class="meta">{{ entry.year_folder }} · {{ idx }} / {{ total }}</span>
+  <div class="nav-spacer"></div>
+  {% if prev_id %}
+  <a href="{{ url_for('review', pid=prev_id) }}" class="nav-btn">← Prev</a>
+  {% else %}
+  <span class="nav-btn disabled">← Prev</span>
+  {% endif %}
+  {% if next_id %}
+  <a href="{{ url_for('review', pid=next_id) }}" class="nav-btn">Next →</a>
+  {% else %}
+  <span class="nav-btn disabled">Next →</span>
+  {% endif %}
+</header>
+
+<main>
+  <div class="pdf-pane">
+    <iframe src="{{ url_for('pdf', pid=entry.id) }}#zoom=65" title="W-9 PDF"></iframe>
+  </div>
+
+  <div class="form-pane">
+
+    {% set ex = entry.primary.extracted or {} %}
+    {% set m  = entry.primary.match or {} %}
+    {% set ed = entry.user_edits or {} %}
+
+    <div class="file-meta">
+      <strong>Source:</strong> {{ entry.path }}<br>
+      <strong>Scanned:</strong> {{ entry.scanned_at }}{% if entry.reviewed %} · <strong>Reviewed:</strong> {{ entry.reviewed_at }}{% endif %}
+    </div>
+
+    <h2>Spectrum Match</h2>
+    <div class="ocr-block">
+      {% if m.candidates %}
+        <div style="font-size:0.7rem; color:var(--muted); margin-bottom:4px;">
+          Best fuzzy matches (against <code>{{ m.matched_against or 'line2_business' }}</code>) &mdash; click a chip to fill the form below.
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px;">
+        {% for c in m.candidates %}
+          <button type="button" class="cand-chip"
+                  data-vcode="{{ c.vendor_code }}" data-vname="{{ c.vendor_name }}"
+                  title="Fuzzy match ratio {{ '%.2f'|format(c.ratio) }} &mdash; click to fill the form"
+                  style="cursor:pointer; padding:4px 10px; border-radius:14px; border:1px solid var(--border); background:{% if loop.first and c.ratio >= 0.70 %}#dcfce7{% elif c.ratio >= 0.60 %}#fef3c7{% else %}#f1f5f9{% endif %}; font-size:0.74rem;">
+            <strong>{{ c.vendor_code }}</strong>
+            <span style="margin:0 4px; color:var(--muted);">&middot;</span>
+            {{ c.vendor_name }}
+            <span style="margin-left:6px; font-weight:700; color:#64748b;">{{ '%.0f'|format(c.ratio * 100) }}%</span>
+          </button>
+        {% endfor %}
+        </div>
+      {% else %}
+        <span class="match-chip none">no candidates</span>
+      {% endif %}
+      <div style="margin-top:6px;">
+        <input type="text" id="vendor-typeahead"
+               placeholder="Search active vendors by name or code&hellip;"
+               autocomplete="off"
+               style="width:100%; padding:5px 8px; border:1px solid var(--border); border-radius:4px; font-size:0.82rem;">
+        <div id="typeahead-results"
+             style="display:none; max-height:240px; overflow-y:auto; border:1px solid var(--border); border-top:0; border-radius:0 0 4px 4px; background:#fff; box-shadow:0 4px 12px rgba(0,0,0,0.08);"></div>
+      </div>
+    </div>
+
+    <h2>Confirm / Edit</h2>
+    <form class="edit" id="edit-form">
+      <div class="row">
+        <label>
+          Vendor Code
+          <input type="text" name="vendor_code"
+                 value="{{ ed.vendor_code or m.vendor_code or '' }}"
+                 placeholder="e.g. 13420">
+        </label>
+        <label>
+          TIN Kind
+          <select name="tin_kind">
+            <option value="">—</option>
+            <option value="EIN" {% if (ed.tin_kind or ex.tin_kind) == 'EIN' %}selected{% endif %}>EIN</option>
+            <option value="SSN" {% if (ed.tin_kind or ex.tin_kind) == 'SSN' %}selected{% endif %}>SSN</option>
+          </select>
+        </label>
+      </div>
+      <label>
+        Vendor Name
+        <input type="text" name="vendor_name"
+               value="{{ ed.vendor_name or m.vendor_name or ex.line1_name or '' }}">
+      </label>
+      <div class="row">
+        <label>
+          TIN
+          <input type="text" name="tin"
+                 value="{{ ed.tin or ex.tin_formatted or '' }}"
+                 placeholder="NN-NNNNNNN or NNN-NN-NNNN">
+        </label>
+        <label>
+          Sig Date
+          <input type="text" name="signature_date"
+                 value="{{ ed.signature_date or ex.signature_date or '' }}"
+                 placeholder="MM/DD/YYYY">
+        </label>
+      </div>
+      <label>
+        Classification
+        {% set cls = ed.classification or ex.classification or '' %}
+        <select name="classification">
+          <option value="">— select —</option>
+          {% for opt in ["Individual/Sole Proprietor", "Partnership", "C Corporation", "S Corporation", "Trust/Estate", "LLC (Sole Proprietor)", "LLC (Partnership)", "LLC (S Corporation)", "LLC (C Corporation)", "Other"] %}
+          <option value="{{ opt }}" {% if cls == opt %}selected{% endif %}>{{ opt }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Notes
+        <textarea name="notes" rows="2">{{ ed.notes or '' }}</textarea>
+      </label>
+
+      <div class="actions">
+        <button type="button" class="btn-primary" onclick="save(true)">Save &amp; Mark Reviewed</button>
+        <button type="button" class="btn-secondary" onclick="save(false)">Save (Unreviewed)</button>
+        <span class="save-status" id="save-status"></span>
+      </div>
+    </form>
+
+    <h2 style="margin-top:18px;">Post to Spectrum &middot; W-9 Received</h2>
+    {% if entry.posted %}
+    <div class="ocr-block" id="posted-banner"
+         style="background:#dcfce7; border-color:#86efac;">
+      <strong style="color:#166534;">&#10003; Posted to Spectrum</strong><br>
+      Vendor <code>{{ entry.posted.vendor_code }}</code>
+      &middot; log #{{ entry.posted.log_id or '—' }}
+      &middot; {{ entry.posted.posted_at }}
+      <span style="color:var(--muted);">({{ entry.posted.action }})</span>
+    </div>
+    {% endif %}
+    <div id="w9-status" class="ocr-block" style="font-size:0.78rem;">
+      <span style="color:var(--muted);">Select a vendor above to check its
+      W-9 tracking status in Spectrum&hellip;</span>
+    </div>
+    <div id="tin-reconcile" class="ocr-block" style="font-size:0.78rem; display:none;"></div>
+    <div id="c1099-reconcile" class="ocr-block" style="font-size:0.78rem; display:none;"></div>
+    <div class="actions">
+      <button type="button" class="btn-secondary" onclick="previewPost()">Preview (dry run)</button>
+      <button type="button" class="btn-primary" id="post-btn" onclick="doPost()">Approve &amp; Post W-9 Received</button>
+      <span class="save-status" id="post-status"></span>
+    </div>
+    <div style="font-size:0.68rem; color:var(--muted); margin-top:6px;">
+      Posts to Spectrum document tracking: sets the vendor's W-9 item to
+      Complete and logs a received event dated the W-9 signature date.
+      Only the selected vendor is touched.
+    </div>
+
+  </div>
+</main>
+
+<script>
+function save(markReviewed) {
+  var form = document.getElementById('edit-form');
+  var body = {};
+  Array.from(form.elements).forEach(function(el) {
+    if (el.name) body[el.name] = el.value;
+  });
+  body.reviewed = markReviewed;
+  var status = document.getElementById('save-status');
+  status.textContent = 'Saving...';
+  status.className = 'save-status';
+  fetch('/save/{{ entry.id }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok) {
+      status.textContent = markReviewed ? 'Saved & marked reviewed' : 'Saved';
+      status.className = 'save-status ok';
+      if (markReviewed) {
+        // Auto-advance to next entry on review-save (common workflow).
+        {% if next_id %}
+        setTimeout(function() { window.location = '{{ url_for("review", pid=next_id) }}'; }, 400);
+        {% endif %}
+      }
+    } else {
+      status.textContent = 'Failed: ' + (d.error || 'unknown');
+      status.className = 'save-status err';
+    }
+  })
+  .catch(function(e) {
+    status.textContent = 'Network error: ' + e;
+    status.className = 'save-status err';
+  });
+}
+
+// Click-to-fill candidate chips → write into Vendor Code + Vendor Name
+document.querySelectorAll('.cand-chip').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var form = document.getElementById('edit-form');
+    form.elements['vendor_code'].value = btn.dataset.vcode || '';
+    form.elements['vendor_name'].value = btn.dataset.vname || '';
+    // Highlight selected chip
+    document.querySelectorAll('.cand-chip').forEach(function(b) { b.style.outline = ''; });
+    btn.style.outline = '2px solid #1f3b66';
+    refreshW9Status();
+  });
+});
+
+// Typeahead — debounced search against /vendors/search
+(function() {
+  var input = document.getElementById('vendor-typeahead');
+  var results = document.getElementById('typeahead-results');
+  if (!input || !results) return;
+  var debounceTimer = null;
+  var lastQuery = '';
+
+  function render(rows) {
+    if (!rows || !rows.length) {
+      results.innerHTML = '<div style="padding:8px 12px; font-size:0.78rem; color:var(--muted); font-style:italic;">No matches.</div>';
+      results.style.display = 'block';
+      return;
+    }
+    results.innerHTML = rows.map(function(r) {
+      var kind = r.match_kind === 'substring' ? 'sub' : (Math.round((r.ratio || 0) * 100) + '%');
+      return '<div class="th-row" data-vcode="' + (r.code || '') + '" data-vname="' + (r.name || '').replace(/"/g, '&quot;') + '" ' +
+             'style="padding:6px 12px; cursor:pointer; border-bottom:1px solid #f1f5f9; font-size:0.8rem;">' +
+             '<strong>' + r.code + '</strong> &middot; ' + r.name +
+             '<span style="float:right; font-size:0.7rem; color:var(--muted);">' + kind + '</span>' +
+             '</div>';
+    }).join('');
+    results.querySelectorAll('.th-row').forEach(function(row) {
+      row.addEventListener('mouseenter', function() { row.style.background = '#eef2ff'; });
+      row.addEventListener('mouseleave', function() { row.style.background = ''; });
+      row.addEventListener('click', function() {
+        var form = document.getElementById('edit-form');
+        form.elements['vendor_code'].value = row.dataset.vcode || '';
+        form.elements['vendor_name'].value = row.dataset.vname || '';
+        input.value = row.dataset.vname || '';
+        results.style.display = 'none';
+        // Clear chip highlight since we picked via typeahead
+        document.querySelectorAll('.cand-chip').forEach(function(b) { b.style.outline = ''; });
+        refreshW9Status();
+      });
+    });
+    results.style.display = 'block';
+  }
+
+  function fetchVendors(q) {
+    if (q === lastQuery) return;
+    lastQuery = q;
+    if (!q.trim()) { results.style.display = 'none'; return; }
+    fetch('/vendors/search?q=' + encodeURIComponent(q) + '&limit=20')
+      .then(function(r) { return r.json(); })
+      .then(function(d) { render(d.results); })
+      .catch(function(e) {
+        results.innerHTML = '<div style="padding:8px 12px; font-size:0.78rem; color:#b91c1c;">Search failed: ' + e + '</div>';
+        results.style.display = 'block';
+      });
+  }
+
+  input.addEventListener('input', function() {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(function() { fetchVendors(input.value); }, 180);
+  });
+
+  input.addEventListener('focus', function() {
+    if (input.value.trim()) fetchVendors(input.value);
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!input.contains(e.target) && !results.contains(e.target)) {
+      results.style.display = 'none';
+    }
+  });
+})();
+
+// ─── Spectrum W-9 post ───
+var POST_PID = '{{ entry.id }}';
+var _w9 = { vendor: null, status: null };
+
+function currentVendor() {
+  var f = document.getElementById('edit-form');
+  return {
+    code:    (f.elements['vendor_code'].value || '').trim(),
+    name:    (f.elements['vendor_name'].value || '').trim(),
+    sig:     (f.elements['signature_date'].value || '').trim(),
+    tin:     (f.elements['tin'].value || '').trim(),
+    tinKind: (f.elements['tin_kind'].value || '').trim(),
+    cls:     (f.elements['classification'].value || '').trim(),
+  };
+}
+
+// W-9 classification -> should a 1099 be issued? (Send_1099_Flag)
+var ISSUE_1099 = {
+  "Individual/Sole Proprietor": "Y",
+  "Partnership": "Y",
+  "Trust/Estate": "Y",
+  "C Corporation": "N",
+  "S Corporation": "N",
+  "LLC (Sole Proprietor)": "Y",
+  "LLC (Partnership)": "Y",
+  "LLC (S Corporation)": "N",
+  "LLC (C Corporation)": "N",
+  "Other": ""
+};
+function _digits(s) { return (s || '').replace(/\D/g, ''); }
+function escapeHtml(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Live TIN mask driven by the TIN-kind dropdown: SSN nnn-nn-nnnn, EIN nn-nnnnnnn.
+function formatTin() {
+  var f = document.getElementById('edit-form');
+  var fld = f.elements['tin'];
+  var kind = (f.elements['tin_kind'].value || '').toUpperCase();
+  var d = (fld.value || '').replace(/\D/g, '').slice(0, 9);
+  var out = d;
+  if (kind === 'SSN') {
+    if (d.length > 5)      out = d.slice(0,3) + '-' + d.slice(3,5) + '-' + d.slice(5);
+    else if (d.length > 3) out = d.slice(0,3) + '-' + d.slice(3);
+  } else if (kind === 'EIN') {
+    if (d.length > 2)      out = d.slice(0,2) + '-' + d.slice(2);
+  }
+  fld.value = out;
+  renderTinReconcile();
+}
+
+// Natural date entry: type 053126 -> 05/31/2026, 05312026 -> 05/31/2026.
+function formatDate() {
+  var fld = document.getElementById('edit-form').elements['signature_date'];
+  var d = (fld.value || '').replace(/\D/g, '');
+  if (d.length === 6)      fld.value = d.slice(0,2) + '/' + d.slice(2,4) + '/20' + d.slice(4,6);
+  else if (d.length === 8) fld.value = d.slice(0,2) + '/' + d.slice(2,4) + '/' + d.slice(4,8);
+  // any other length: leave the user's text alone
+}
+
+function renderStatusBox(d) {
+  var box = document.getElementById('w9-status');
+  var postBtn = document.getElementById('post-btn');
+  if (!d || !d.ok) {
+    box.innerHTML = '<span style="color:#b91c1c;">Status check failed: ' + ((d && d.error) || '') + '</span>';
+    return;
+  }
+  var L = ['<strong>' + d.vendor_code + '</strong> &middot; ' + (d.vendor_name || '(no name)')];
+  if (!d.has_assignment) {
+    L.push('<div style="color:#b91c1c; margin-top:4px;">No W-9 assignment row in Spectrum for this vendor &mdash; posting is blocked. The assignment row must be added first.</div>');
+    postBtn.disabled = true;
+  } else if (d.already_received) {
+    L.push('<div style="color:#92400e; margin-top:4px;">Already marked received' + (d.last_received ? ' on ' + d.last_received : '') + '. Posting again is a no-op.</div>');
+    postBtn.disabled = false;
+  } else {
+    L.push('<div style="color:#166534; margin-top:4px;">Assignment row present, not yet received &mdash; ready to post.</div>');
+    postBtn.disabled = false;
+  }
+  box.innerHTML = L.join('');
+}
+
+function renderTinReconcile() {
+  var panel = document.getElementById('tin-reconcile');
+  var v = currentVendor();
+  var st = _w9.status;
+  if (!v.code || !st || !st.ok) { panel.style.display = 'none'; return; }
+  var spec = (st.fed_id_on_file || '').trim();
+  var ds = _digits(spec), dm = _digits(v.tin);
+  var html;
+  if (!dm && !ds) { panel.style.display = 'none'; return; }
+  else if (!dm && ds) {
+    html = 'TIN on file in Spectrum: <code>' + escapeHtml(spec) + '</code>. (No TIN entered here.)';
+  } else if (dm && !ds) {
+    html = 'Spectrum has <strong>no TIN</strong> on file. You entered <code>' + escapeHtml(v.tin) + '</code>. ' +
+           '<button type="button" class="btn-secondary" style="padding:2px 8px;" onclick="updateTin()">Write my TIN to Spectrum</button>';
+  } else if (dm === ds) {
+    html = '<span style="color:#166534;">&#10003; TIN matches Spectrum</span> (<code>' + escapeHtml(spec) + '</code>).';
+  } else {
+    html = '<div style="color:#b91c1c;">TIN does not match Spectrum:</div>' +
+           '<div style="margin:2px 0;">Spectrum: <code>' + escapeHtml(spec) + '</code></div>' +
+           '<div style="margin:2px 0;">You entered: <code>' + escapeHtml(v.tin) + '</code></div>' +
+           '<div style="margin-top:5px;">' +
+           '<button type="button" class="btn-secondary" style="padding:2px 8px;" onclick="dismissTin()">Keep Spectrum</button> ' +
+           '<button type="button" class="btn-primary" style="padding:2px 8px;" onclick="updateTin()">Update Spectrum to mine</button>' +
+           '</div>';
+  }
+  panel.innerHTML = html;
+  panel.style.display = 'block';
+}
+
+function dismissTin() {
+  document.getElementById('tin-reconcile').innerHTML =
+    '<span style="color:var(--muted);">Kept Spectrum’s TIN. No change made.</span>';
+}
+
+function updateTin() {
+  var v = currentVendor();
+  if (!v.code || _digits(v.tin).length !== 9) { alert('Enter a 9-digit TIN first.'); return; }
+  if (!confirm('Write TIN ' + v.tin + ' to Spectrum vendor ' + v.code + '?\n\nThis updates the vendor master Fed ID.')) return;
+  var panel = document.getElementById('tin-reconcile');
+  panel.innerHTML = 'Updating Spectrum&hellip;';
+  fetch('/vendors/update-tin', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({vendor_code: v.code, tin: v.tin, tin_kind: v.tinKind}),
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if (!d.ok) { panel.innerHTML = '<span style="color:#b91c1c;">Update failed: ' + (d.error || '') + '</span>'; return; }
+    if (_w9.status) _w9.status.fed_id_on_file = d.after || v.tin;
+    panel.innerHTML = (d.action === 'no_change')
+      ? '<span style="color:#166534;">Already matched &mdash; no change.</span>'
+      : '<span style="color:#166534;">&#10003; Spectrum TIN updated to <code>' + escapeHtml(d.after || '') + '</code>.</span>';
+  })
+  .catch(function(e){ panel.innerHTML = '<span style="color:#b91c1c;">Network error: ' + e + '</span>'; });
+}
+
+function _flagTxt(f) { return f === 'Y' ? 'Yes' : (f === 'N' ? 'No' : '(not set)'); }
+
+function render1099Reconcile() {
+  var panel = document.getElementById('c1099-reconcile');
+  var v = currentVendor();
+  var st = _w9.status;
+  if (!v.code || !st || !st.ok) { panel.style.display = 'none'; return; }
+  var spec = (st.send_1099_flag || '').toUpperCase();
+  var box = st.fed_1099_box || '';
+  var sugg = ISSUE_1099[v.cls] || '';
+  var L = ['<strong>1099:</strong> Spectrum = <strong>' + _flagTxt(spec) + '</strong>' +
+           (box ? ' <span style="color:var(--muted);">(box ' + escapeHtml(box) + ')</span>' : '')];
+  if (sugg) {
+    L.push('<div style="margin-top:3px;">W-9 (' + escapeHtml(v.cls) + ') &rarr; should issue 1099: <strong>' + _flagTxt(sugg) + '</strong>'
+           + (spec === sugg ? ' <span style="color:#166534;">&#10003; matches</span>' : '') + '</div>');
+  } else if (v.cls) {
+    L.push('<div style="margin-top:3px; color:var(--muted);">Classification "' + escapeHtml(v.cls) + '" has no automatic 1099 default &mdash; set it manually below.</div>');
+  } else {
+    L.push('<div style="margin-top:3px; color:var(--muted);">Pick a classification above for a 1099 suggestion, or set it manually.</div>');
+  }
+  if (!(sugg && spec === sugg)) {
+    var btn = function(f) {
+      var hot = (f === sugg);
+      return '<button type="button" class="' + (hot ? 'btn-primary' : 'btn-secondary') +
+             '" style="padding:2px 8px;" onclick="set1099(\'' + f + '\')">Set 1099 = ' + _flagTxt(f) +
+             (hot ? ' (suggested)' : '') + '</button>';
+    };
+    L.push('<div style="margin-top:5px;">' + btn('Y') + ' ' + btn('N') + '</div>');
+  }
+  panel.innerHTML = L.join('');
+  panel.style.display = 'block';
+}
+
+function set1099(flag) {
+  var v = currentVendor();
+  if (!v.code) { alert('Pick a vendor first.'); return; }
+  if (!confirm('Set "issue 1099" = ' + _flagTxt(flag) + ' for Spectrum vendor ' + v.code + '?\n\nThis updates the vendor master Send_1099_Flag.')) return;
+  var panel = document.getElementById('c1099-reconcile');
+  panel.innerHTML = 'Updating Spectrum&hellip;';
+  fetch('/vendors/update-1099', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({vendor_code: v.code, send_1099_flag: flag}),
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if (!d.ok) { panel.innerHTML = '<span style="color:#b91c1c;">Update failed: ' + (d.error || '') + '</span>'; return; }
+    if (_w9.status) _w9.status.send_1099_flag = d.after || flag;
+    render1099Reconcile();
+  })
+  .catch(function(e){ panel.innerHTML = '<span style="color:#b91c1c;">Network error: ' + e + '</span>'; });
+}
+
+function refreshW9Status() {
+  var box = document.getElementById('w9-status');
+  var postBtn = document.getElementById('post-btn');
+  var v = currentVendor();
+  if (!v.code) {
+    box.innerHTML = '<span style="color:var(--muted);">Select a vendor above to check its W-9 tracking status in Spectrum&hellip;</span>';
+    postBtn.disabled = false;
+    _w9 = { vendor: null, status: null };
+    renderTinReconcile();
+    render1099Reconcile();
+    return;
+  }
+  if (_w9.vendor === v.code && _w9.status) { renderStatusBox(_w9.status); renderTinReconcile(); render1099Reconcile(); return; }
+  box.innerHTML = 'Checking Spectrum&hellip;';
+  fetch('/vendors/w9-status?code=' + encodeURIComponent(v.code))
+    .then(function(r){ return r.json(); })
+    .then(function(d){ _w9.vendor = v.code; _w9.status = d; renderStatusBox(d); renderTinReconcile(); render1099Reconcile(); })
+    .catch(function(e){ box.innerHTML = '<span style="color:#b91c1c;">Status error: ' + e + '</span>'; });
+}
+function previewPost() { _post(true); }
+function doPost() {
+  var v = currentVendor();
+  if (!v.code) { alert('Pick a Spectrum vendor first.'); return; }
+  if (!confirm('Post W-9 RECEIVED to Spectrum for vendor ' + v.code + (v.name ? ' (' + v.name + ')' : '') + '?\n\nThis updates Spectrum document tracking and is not undoable from this tool.')) return;
+  _post(false);
+}
+function _post(dry) {
+  var v = currentVendor();
+  var status = document.getElementById('post-status');
+  status.textContent = dry ? 'Previewing&hellip;' : 'Posting&hellip;';
+  status.className = 'save-status';
+  fetch('/post/' + POST_PID, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({vendor_code: v.code, signature_date: v.sig, dry_run: dry}),
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if (!d.ok) { status.textContent = 'Failed: ' + (d.error || 'unknown'); status.className = 'save-status err'; return; }
+    if (d.action === 'would_write') {
+      status.textContent = 'Dry run: would post received (date ' + ((d.after && d.after.entry_date) || 'today') + ').';
+      status.className = 'save-status ok';
+    } else if (d.action === 'no_change') {
+      status.textContent = 'Already received in Spectrum — no change.';
+      status.className = 'save-status ok';
+    } else {
+      status.textContent = 'Posted to Spectrum (log #' + (d.log_id || '') + ')';
+      status.className = 'save-status ok';
+      setTimeout(function(){ window.location.reload(); }, 700);
+    }
+  })
+  .catch(function(e){ status.textContent = 'Network error: ' + e; status.className = 'save-status err'; });
+}
+(function(){
+  var f = document.getElementById('edit-form');
+  if (f && f.elements['vendor_code']) {
+    var t = null;
+    f.elements['vendor_code'].addEventListener('input', function(){ if (t) clearTimeout(t); t = setTimeout(refreshW9Status, 400); });
+  }
+  if (f && f.elements['tin']) {
+    f.elements['tin'].addEventListener('input', formatTin);
+  }
+  if (f && f.elements['tin_kind']) {
+    f.elements['tin_kind'].addEventListener('change', formatTin);
+  }
+  if (f && f.elements['classification']) {
+    f.elements['classification'].addEventListener('change', render1099Reconcile);
+  }
+  if (f && f.elements['signature_date']) {
+    f.elements['signature_date'].addEventListener('blur', formatDate);
+  }
+  refreshW9Status();
+})();
+
+// Keyboard navigation
+document.addEventListener('keydown', function(e) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'ArrowLeft' || e.key === 'p') {
+    {% if prev_id %}window.location = '{{ url_for("review", pid=prev_id) }}';{% endif %}
+  } else if (e.key === 'ArrowRight' || e.key === 'n') {
+    {% if next_id %}window.location = '{{ url_for("review", pid=next_id) }}';{% endif %}
+  } else if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    save(true);
+  }
+});
+</script>
+
+</body>
+</html>
