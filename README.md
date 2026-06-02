@@ -3,6 +3,27 @@
 A collection of utility scripts and small applications from [Function Consulting](https://chadaaland.com).
 Each tool is self-contained in its own subfolder with its own README.
 
+## Prerequisite: install Python
+
+All four tools are written in Python. Before running any of them, you
+need Python 3.10 or newer installed.
+
+If `python --version` in a terminal returns something like `Python 3.12.4`,
+you're already set. If not, install one of two ways:
+
+**Easiest (Windows): Microsoft Store**
+1. Open Microsoft Store, search "Python 3.12"
+2. Click Get / Install
+3. Done — PATH is configured automatically
+
+**Cross-platform: python.org**
+1. Download from https://www.python.org/downloads/
+2. Run the installer
+3. **On Windows: check the box "Add python.exe to PATH"** at the bottom of the first screen
+4. Open a fresh terminal and verify with `python --version`
+
+`pip` (Python's package installer) is bundled with Python, so you don't need to install it separately.
+
 ## Tools
 
 ### [extract-convert-combine-to-pdf/](extract-convert-combine-to-pdf/)
