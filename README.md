@@ -17,6 +17,20 @@ Designed for monthly expense-receipt workflows where receipts come in from
 multiple sources (phone photos, emailed PDFs, scanned hard copies) and need
 to land as one tidy PDF.
 
+### [pdf-to-csv/](pdf-to-csv/)
+
+Double-click desktop utility that extracts every table from a PDF as CSV
+files, with a visual preview step before saving. Uses pymupdf's vector-aware
+table detection with pdfplumber as a fallback for unruled tables. Stitches
+multi-page tables that share an identical header row.
+
+### [pdf-to-markdown/](pdf-to-markdown/)
+
+Double-click desktop utility that converts a PDF into clean, LLM-ready
+Markdown using `pymupdf4llm`. Handles multi-column reading order, font-based
+heading detection, and tables-as-GitHub-Markdown — substantially better
+than block-by-block text extraction when the output is destined for an LLM.
+
 ### [w9-catchup/](w9-catchup/)
 
 OCR + review tool for catching up on a backlog of historical IRS Form W-9 PDFs.
@@ -32,13 +46,27 @@ W-9 OCR + vendor matching is useful.
 
 ## License
 
-[MIT](LICENSE) — use, modify, redistribute freely with attribution. No warranty.
+[GNU AGPL-3.0](LICENSE) — see the LICENSE file for full text.
 
-The MIT license covers the source code authored by Function Consulting in
-this repository. Each tool depends on third-party Python packages with their
-own licenses; see **[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)** for
-the full list, including one notable copyleft (GPL-3.0) dependency in the
-receipt-packager tool.
+In plain English:
+
+- **You can** use these tools for any purpose, including in a commercial business
+- **You can** modify them
+- **You can** redistribute them
+- **You can** charge for your time helping someone implement or use them
+- **You must** keep modified copies under AGPL-3.0 (no taking the code closed-source)
+- **You must** publish your modifications if you host a modified version as a
+  network service (the AGPL "no SaaS loophole" clause)
+
+Intent: free, open-source distribution. Improve it and share back. Don't sell
+the software itself as a proprietary product.
+
+### Third-party dependencies
+
+Each tool depends on third-party Python packages with their own licenses.
+See **[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)** for the full list —
+notably, `pymupdf`, `pymupdf4llm`, and `extract-msg` are all themselves
+AGPL/GPL, which is one reason the primary license is AGPL.
 
 ## Contributing
 

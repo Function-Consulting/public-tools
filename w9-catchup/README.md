@@ -238,14 +238,20 @@ and extraction logic directly into your AP intake workflow.
 
 ## License
 
-[MIT](../LICENSE) — the source code in this folder is MIT-licensed.
+[GNU AGPL-3.0](../LICENSE) — the source code in this folder is AGPL-3.0.
 
-Third-party dependencies (Flask, pdfplumber, pytesseract, pypdfium2,
+Third-party Python dependencies (Flask, pdfplumber, pytesseract, pypdfium2,
 pyodbc, Pillow) are all under permissive licenses (BSD-3-Clause, MIT,
-Apache-2.0). See [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) at
-the repository root for the full list, copyright notices, and Apache-2.0
-NOTICE preservation requirements.
+Apache-2.0) and compose into an AGPL-3.0 work without issue. See
+[THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) at the repository root
+for the full list, copyright notices, and Apache-2.0 NOTICE preservation
+requirements.
 
 Tesseract OCR is an external binary you install separately — that
 install is governed by Tesseract's own Apache 2.0 license, not by this
 repository.
+
+**Note on hosting this as a service:** AGPL-3.0 requires that if you
+deploy a modified version of this app as a network service that other
+people interact with, you must publish the modified source code. The
+unmodified upstream version (from this repository) needs no action.

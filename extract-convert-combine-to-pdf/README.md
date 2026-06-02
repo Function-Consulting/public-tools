@@ -154,12 +154,14 @@ behavior, modify the `folder = ...` line in `main()`.
 
 ## License
 
-[MIT](../LICENSE) — the source code in this folder is MIT-licensed.
+[GNU AGPL-3.0](../LICENSE) — the source code in this folder is AGPL-3.0.
 
-**Third-party dependencies have their own licenses, including one GPL-3.0
-dependency (`extract-msg`).** See [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)
-at the repository root for the full list. In particular, if you bundle and
-redistribute this script (e.g., as a PyInstaller binary) you must comply
-with the upstream licenses, including GPL-3.0's source-offer requirement.
-Simply running the script locally after `pip install`ing the dependencies
-is unrestricted.
+This script imports `extract-msg`, which is licensed under GPL-3.0. GPL-3.0
+code composes cleanly into an AGPL-3.0 work as long as the combined work
+is distributed under AGPL-3.0 (which it is).
+
+If you bundle and redistribute this script as a binary (e.g., PyInstaller),
+you must include the full text of every dependency's license alongside it
+and offer corresponding source code for the GPL-3 / AGPL-3 components.
+See [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) at the repository
+root for the full list.
