@@ -39,3 +39,6 @@ cache/
 
 # Logs
 *.log
+
+# Local working materials (not part of the published tools)
+ODBC help/
