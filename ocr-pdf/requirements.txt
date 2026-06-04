@@ -1,0 +1,5 @@
+# Also requires the Tesseract OCR engine, installed separately:
+# https://github.com/UB-Mannheim/tesseract/wiki
+pymupdf>=1.24
+pytesseract>=0.3
+Pillow>=10

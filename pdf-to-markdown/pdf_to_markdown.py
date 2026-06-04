@@ -1,3 +1,15 @@
+# pdf_to_markdown.py -- part of the public-tools collection.
+# Copyright (C) 2026 Chad Aaland.
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.  It is distributed in the hope that it will be
+# useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero
+# General Public License at <https://www.gnu.org/licenses/> for details.
+#
+# Third-party components and their licenses: see THIRD_PARTY_NOTICES.md.
 """
 PDF -> clean Markdown for LLM consumption.
 
@@ -16,10 +28,23 @@ import traceback
 from pathlib import Path
 from tkinter import Tk, filedialog, messagebox
 
+import pymupdf
 import pymupdf4llm
 
 
 def extract_markdown(pdf_path: Path) -> str:
+    """Convert a PDF to clean Markdown.
+
+    A scanned PDF (no text layer) is OCR'd page-by-page with Tesseract and the
+    recognized text is returned directly, because pymupdf4llm cannot read the
+    invisible text layer of an OCR'd image.  OCR needs the Tesseract engine
+    installed; without it a scan converts to near-empty Markdown.
+    """
+    pdf_path = Path(pdf_path)
+    if pdf_path.suffix.lower() == ".pdf" and not _has_text_layer(pdf_path):
+        ocr_text = _ocr_pages_to_text(pdf_path)
+        if ocr_text.strip():
+            return _tidy(ocr_text)
     md = pymupdf4llm.to_markdown(
         str(pdf_path),
         write_images=False,
@@ -30,6 +55,78 @@ def extract_markdown(pdf_path: Path) -> str:
         show_progress=False,
     )
     return _tidy(md)
+
+
+# ---------- OCR fallback for scanned / image-only PDFs ----------
+# pymupdf4llm reads nothing from a scan, and even a Tesseract "searchable PDF"
+# overlay is invisible to it.  So we render each page, run Tesseract directly,
+# and return the recognized text.  Tesseract is the external OCR engine
+# (https://github.com/UB-Mannheim/tesseract/wiki); without it this fallback is
+# skipped and a scan converts to near-empty Markdown.
+
+def _locate_tesseract() -> str | None:
+    """Find tesseract.exe via TESSERACT_CMD, PATH, or the default install dir."""
+    import os
+    import shutil
+    env = os.environ.get("TESSERACT_CMD")
+    if env and Path(env).is_file():
+        return env
+    on_path = shutil.which("tesseract")
+    if on_path:
+        return on_path
+    for candidate in (
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    ):
+        if Path(candidate).is_file():
+            return candidate
+    return None
+
+
+def _has_text_layer(pdf_path: Path) -> bool:
+    """True if the PDF already carries a real text layer (OCR not needed).
+
+    A born-digital PDF has hundreds of characters; a scan has ~none, so a low
+    threshold cleanly separates the two.
+    """
+    doc = pymupdf.open(pdf_path)
+    try:
+        chars = 0
+        for page in doc:
+            chars += len(page.get_text("text").strip())
+            if chars > 16:
+                return True
+    finally:
+        doc.close()
+    return False
+
+
+def _ocr_pages_to_text(pdf_path: Path) -> str:
+    """OCR each page with Tesseract and return the recognized text, or '' if
+    the Tesseract engine isn't installed."""
+    tcmd = _locate_tesseract()
+    if not tcmd:
+        return ""
+    import io
+    try:
+        import pytesseract
+        from PIL import Image
+    except ImportError:
+        import subprocess
+        subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
+                        "pytesseract", "Pillow"])
+        import pytesseract
+        from PIL import Image
+    pytesseract.pytesseract.tesseract_cmd = tcmd
+    parts: list[str] = []
+    doc = pymupdf.open(pdf_path)
+    try:
+        for page in doc:
+            png = page.get_pixmap(dpi=300).tobytes("png")
+            parts.append(pytesseract.image_to_string(Image.open(io.BytesIO(png))))
+    finally:
+        doc.close()
+    return "\n\n".join(parts)
 
 
 def _tidy(text: str) -> str:

@@ -1,3 +1,15 @@
+# pdf_to_csv.py -- part of the public-tools collection.
+# Copyright (C) 2026 Chad Aaland.
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.  It is distributed in the hope that it will be
+# useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero
+# General Public License at <https://www.gnu.org/licenses/> for details.
+#
+# Third-party components and their licenses: see THIRD_PARTY_NOTICES.md.
 """
 PDF -> CSV table extractor.
 
@@ -27,9 +39,166 @@ Table = list[list[str]]
 
 
 def extract_tables(pdf_path: Path) -> list[Table]:
-    """Detect tables page-by-page, then stitch continuations."""
-    per_page = _extract_per_page(pdf_path)
-    return _stitch_continuations(per_page)
+    """Detect tables page-by-page, then stitch continuations.
+
+    If the PDF has no text layer (i.e. it is a scan) and nothing is found, it
+    is OCR'd: each page is rendered, Tesseract reads the words and their
+    positions, and a table grid is rebuilt from those positions.  OCR needs
+    the Tesseract engine installed; without it a scan simply yields no tables.
+    """
+    tables = _stitch_continuations(_extract_per_page(pdf_path))
+    if (
+        not tables
+        and Path(pdf_path).suffix.lower() == ".pdf"
+        and not _has_text_layer(pdf_path)
+    ):
+        tables = _stitch_continuations(_ocr_pages_to_tables(pdf_path))
+    return tables
+
+
+# ---------- OCR fallback for scanned / image-only PDFs ----------
+# When a PDF carries no text layer the table finders above have nothing to
+# work with: a Tesseract "searchable PDF" doesn't help either, because its
+# text sits in the image's pixel coordinate space, which defeats pdfplumber's
+# point-scale clustering.  Instead we render each page, ask Tesseract for the
+# words AND their pixel positions, and rebuild a grid directly (rows from text
+# lines, columns clustered by x-position).  Tesseract is the external OCR
+# engine (https://github.com/UB-Mannheim/tesseract/wiki); without it this
+# fallback is skipped and the scan yields no tables.
+
+def _locate_tesseract() -> str | None:
+    """Find tesseract.exe via TESSERACT_CMD, PATH, or the default install dir."""
+    import os
+    import shutil
+    env = os.environ.get("TESSERACT_CMD")
+    if env and Path(env).is_file():
+        return env
+    on_path = shutil.which("tesseract")
+    if on_path:
+        return on_path
+    for candidate in (
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    ):
+        if Path(candidate).is_file():
+            return candidate
+    return None
+
+
+def _has_text_layer(pdf_path: Path) -> bool:
+    """True if the PDF already carries a real text layer (OCR not needed).
+
+    A born-digital PDF has hundreds of characters; a scan has ~none, so a low
+    threshold cleanly separates the two.  A text PDF that merely lacks tables
+    is left alone (OCR wouldn't help it).
+    """
+    doc = pymupdf.open(pdf_path)
+    try:
+        chars = 0
+        for page in doc:
+            chars += len(page.get_text("text").strip())
+            if chars > 16:
+                return True
+    finally:
+        doc.close()
+    return False
+
+
+def _import_ocr_deps():
+    """Import pytesseract + Pillow, pip-installing them on first use."""
+    try:
+        import pytesseract
+        from PIL import Image
+    except ImportError:
+        import subprocess
+        subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
+                        "pytesseract", "Pillow"])
+        import pytesseract
+        from PIL import Image
+    return pytesseract, Image
+
+
+def _ocr_pages_to_tables(pdf_path: Path) -> list[Table]:
+    """Render each page, OCR it, and rebuild a table grid from word positions.
+    Returns [] if the Tesseract engine isn't installed."""
+    tcmd = _locate_tesseract()
+    if not tcmd:
+        return []
+    import io
+    pytesseract, Image = _import_ocr_deps()
+    pytesseract.pytesseract.tesseract_cmd = tcmd
+    tables: list[Table] = []
+    doc = pymupdf.open(pdf_path)
+    try:
+        for page in doc:
+            png = page.get_pixmap(dpi=300).tobytes("png")
+            data = pytesseract.image_to_data(
+                Image.open(io.BytesIO(png)),
+                output_type=pytesseract.Output.DICT,
+            )
+            cleaned = _clean_table(_grid_from_ocr_words(data))
+            if _looks_like_table(cleaned):
+                tables.append(cleaned)
+    finally:
+        doc.close()
+    return tables
+
+
+def _grid_from_ocr_words(data: dict) -> list[list[str]]:
+    """Rebuild a table grid from Tesseract image_to_data output: rows are text
+    lines, columns are clustered by left x-position."""
+    words = []
+    for i in range(len(data["text"])):
+        text = (data["text"][i] or "").strip()
+        if not text:
+            continue
+        try:
+            conf = float(data["conf"][i])
+        except (ValueError, TypeError):
+            conf = -1.0
+        if conf < 0:
+            continue
+        words.append({
+            "text": text,
+            "left": data["left"][i],
+            "top": data["top"][i],
+            "h": data["height"][i],
+            "line": (data["block_num"][i], data["par_num"][i], data["line_num"][i]),
+        })
+    if not words:
+        return []
+
+    # Rows: group by Tesseract's (block, paragraph, line), top-to-bottom.
+    lines: dict = {}
+    for w in words:
+        lines.setdefault(w["line"], []).append(w)
+    ordered = sorted(lines.values(), key=lambda ws: min(w["top"] for w in ws))
+
+    # Columns: cluster all left edges; a gap wider than ~1.5x the median glyph
+    # height starts a new column.
+    lefts = sorted(w["left"] for w in words)
+    heights = sorted(w["h"] for w in words)
+    gap = max(heights[len(heights) // 2] * 1.5, 12)
+    clusters = [[lefts[0]]]
+    for x in lefts[1:]:
+        if x - clusters[-1][-1] > gap:
+            clusters.append([x])
+        else:
+            clusters[-1].append(x)
+    centers = [sum(c) / len(c) for c in clusters]
+
+    def column_of(x: int) -> int:
+        return min(range(len(centers)), key=lambda i: abs(centers[i] - x))
+
+    grid: list[list[str]] = []
+    for ws in ordered:
+        row = [""] * len(centers)
+        for w in sorted(ws, key=lambda x: x["left"]):
+            row[column_of(w["left"])] = (
+                row[column_of(w["left"])] + " " + w["text"]
+            ).strip()
+        grid.append(row)
+    return grid
 
 
 def _extract_per_page(pdf_path: Path) -> list[Table]:
@@ -217,7 +386,11 @@ def run_gui() -> None:
         if not tables:
             messagebox.showwarning(
                 "No tables found",
-                "No tables detected. If the PDF is scanned, it needs OCR first.",
+                "No tables detected.\n\n"
+                "Scanned PDFs are OCR'd automatically before extraction. If a "
+                "scan still found nothing, the scan may be too low-quality, or "
+                "the Tesseract OCR engine isn't installed (see "
+                "https://github.com/UB-Mannheim/tesseract/wiki).",
             )
             return
 

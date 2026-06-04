@@ -1,3 +1,15 @@
+# app.py -- part of the public-tools collection (w9-catchup).
+# Copyright (C) 2026 Chad Aaland.
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.  It is distributed in the hope that it will be
+# useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero
+# General Public License at <https://www.gnu.org/licenses/> for details.
+#
+# Third-party components and their licenses: see THIRD_PARTY_NOTICES.md.
 """W-9 Catch-Up — one-off OCR + review tool for historical K:\\W-9s PDFs.
 
 Standalone Flask app.  NOT part of Tallera proper — this exists to

@@ -1,2 +1,7 @@
 pymupdf>=1.24
 pdfplumber>=0.10
+# Optional - only used to OCR scanned (image-only) PDFs before extraction.
+# The tool auto-installs these on first use; the Tesseract engine must also
+# be installed (https://github.com/UB-Mannheim/tesseract/wiki).
+pytesseract>=0.3
+Pillow>=10

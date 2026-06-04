@@ -8,7 +8,7 @@ The user of these tools is responsible for complying with the upstream
 licenses of any dependency they install or distribute.
 
 The tools in this repository are licensed under the [GNU AGPL-3.0](LICENSE).
-That license applies to the source code written by Function Consulting only
+That license applies to the source code written by Chad Aaland only
 — **not** to the third-party dependencies listed below, each of which has
 its own license.
 
@@ -69,6 +69,21 @@ its own license.
 - **License:** MIT
 - **Project:** https://github.com/jsvine/pdfplumber
 
+### pytesseract (OCR fallback)
+- **License:** Apache License 2.0
+- **Project:** https://github.com/madmaze/pytesseract
+- **Note:** Used only when a scanned (image-only) PDF must be OCR'd before
+  table extraction.
+
+### Pillow (OCR fallback)
+- **License:** MIT-CMU / HPND
+- **Project:** https://github.com/python-pillow/Pillow
+
+### Tesseract OCR (external binary, not redistributed; OCR fallback)
+- **License:** Apache License 2.0
+- **Project:** https://github.com/tesseract-ocr/tesseract
+- **Note:** External engine the user installs separately; not redistributed.
+
 ---
 
 ## pdf-to-markdown
@@ -79,6 +94,43 @@ its own license.
 - **Vendor:** https://www.artifex.com
 - **Note:** Same dual-license terms as pymupdf above; pulls pymupdf in as
   a transitive dependency.
+
+### pytesseract (OCR fallback)
+- **License:** Apache License 2.0
+- **Project:** https://github.com/madmaze/pytesseract
+- **Note:** Used only when a scanned (image-only) PDF must be OCR'd before
+  Markdown conversion.
+
+### Pillow (OCR fallback)
+- **License:** MIT-CMU / HPND
+- **Project:** https://github.com/python-pillow/Pillow
+
+### Tesseract OCR (external binary, not redistributed; OCR fallback)
+- **License:** Apache License 2.0
+- **Project:** https://github.com/tesseract-ocr/tesseract
+- **Note:** External engine the user installs separately; not redistributed.
+
+---
+
+## ocr-pdf
+
+### pymupdf (PyMuPDF)
+- **License:** Dual-licensed: GNU AGPL-3.0 **or** Artifex commercial license
+- **Project:** https://github.com/pymupdf/PyMuPDF
+- **Vendor:** https://www.artifex.com
+
+### pytesseract
+- **License:** Apache License 2.0
+- **Project:** https://github.com/madmaze/pytesseract
+
+### Pillow
+- **License:** MIT-CMU / HPND
+- **Project:** https://github.com/python-pillow/Pillow
+
+### Tesseract OCR (external binary, not redistributed)
+- **License:** Apache License 2.0
+- **Project:** https://github.com/tesseract-ocr/tesseract
+- **Note:** External engine the user installs separately; not redistributed.
 
 ---
 
@@ -158,6 +210,16 @@ following canonical URLs:
 | w9-catchup | pypdfium2 | BSD-3 / Apache-2.0 | No |
 | w9-catchup | pyodbc | MIT | No |
 | w9-catchup | Tesseract (binary) | Apache-2.0 | No |
+| pdf-to-csv | pytesseract (OCR fallback) | Apache-2.0 | No |
+| pdf-to-csv | Pillow (OCR fallback) | HPND | No |
+| pdf-to-csv | Tesseract (OCR fallback, binary) | Apache-2.0 | No |
+| pdf-to-markdown | pytesseract (OCR fallback) | Apache-2.0 | No |
+| pdf-to-markdown | Pillow (OCR fallback) | HPND | No |
+| pdf-to-markdown | Tesseract (OCR fallback, binary) | Apache-2.0 | No |
+| ocr-pdf | pymupdf | AGPL-3.0 / commercial | Yes |
+| ocr-pdf | pytesseract | Apache-2.0 | No |
+| ocr-pdf | Pillow | HPND | No |
+| ocr-pdf | Tesseract (binary) | Apache-2.0 | No |
 
 The repository's AGPL-3.0 primary license is the cleanest match given the
 GPL-family dependencies. Anyone wishing to incorporate this code into a
@@ -191,4 +253,4 @@ step before sharing.
 If dependencies are upgraded to versions with different licenses, or new
 dependencies are added, this file must be updated.
 
-Last verified: 2026-06-02.
+Last verified: 2026-06-04.

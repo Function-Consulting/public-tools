@@ -1,6 +1,6 @@
 # Public Tools
 
-A collection of utility scripts and small applications from [Function Consulting](https://chadaaland.com).
+A collection of utility scripts and small applications from [Chad Aaland](https://chadaaland.com).
 Each tool is self-contained in its own subfolder with its own README.
 
 ## Prerequisite: install Python
@@ -43,7 +43,9 @@ to land as one tidy PDF.
 Double-click desktop utility that extracts every table from a PDF as CSV
 files, with a visual preview step before saving. Uses pymupdf's vector-aware
 table detection with pdfplumber as a fallback for unruled tables. Stitches
-multi-page tables that share an identical header row.
+multi-page tables that share an identical header row. Scanned (image-only)
+PDFs are OCR'd automatically with Tesseract before extraction (requires the
+Tesseract engine; see ocr-pdf below).
 
 ### [pdf-to-markdown/](pdf-to-markdown/)
 
@@ -51,6 +53,18 @@ Double-click desktop utility that converts a PDF into clean, LLM-ready
 Markdown using `pymupdf4llm`. Handles multi-column reading order, font-based
 heading detection, and tables-as-GitHub-Markdown — substantially better
 than block-by-block text extraction when the output is destined for an LLM.
+Scanned (image-only) PDFs are OCR'd automatically with Tesseract (requires
+the Tesseract engine; see ocr-pdf below).
+
+### [ocr-pdf/](ocr-pdf/)
+
+Double-click desktop utility that turns a scanned PDF (or image) into a
+**searchable** PDF: the same page images, with an invisible OCR text layer
+added so the text can be selected, copied, and read by other tools. Writes a
+plain `.txt` sidecar too. Requires the Tesseract OCR engine. Use it when you
+want a reusable searchable PDF; pdf-to-csv and pdf-to-markdown already OCR
+scans internally, so ocr-pdf is only needed when you want the searchable PDF
+file itself.
 
 ### [w9-catchup/](w9-catchup/)
 
